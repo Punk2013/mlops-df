@@ -1,0 +1,5 @@
+{
+  "data_root": "data",
+  "extensions": [ "jpg", "jpeg", "png"],
+  "metadata_file": "person_metadatea.json"
+}

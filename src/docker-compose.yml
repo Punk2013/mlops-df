@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  web-master:
+    build: ./web-master
+    ports:
+      - "8000:8000"
+      - "7860:7860"
+    depends_on:
+      - storage-service
+    networks:
+      - microservices-network
+      
+  storage-service:
+    build: ./storage
+    ports:
+      - "8001:8001"
+    volumes:
+      - ../data:/app/data
+    networks:
+      - microservices-network
+  
+networks:
+  microservices-network:
+    driver: bridge
