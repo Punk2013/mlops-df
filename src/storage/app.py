@@ -3,24 +3,14 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+import io
 
 from PIL import Image
 
-from fastapi import FastAPI
+from fastapi import FastAPI, File
 
 app = FastAPI(title="Storage service")
-
-person_registry: dict = {}
-
-with open("/home/sizif/projects/mlops-df/src/storage/config.json", 'r') as config_file:
-  config = json.load(config_file)
-
-def init() -> None:
-  Path(config["data_root"]).mkdir(parents=True, exist_ok=True)
-  discover_existing_persons()
-  load_metadata()
-  
 
 def discover_existing_persons() -> Dict[str, Path]:
   global person_registry
@@ -65,7 +55,7 @@ def save_metadata():
   except Exception as e:
     print(f"Warning: Could not save metadata: {e}")
 
-@app.get("/persons")
+@app.get("/persons", response_model=None)
 def list_persons() -> Dict[str, List[str]]:
   return {"persons": list(person_registry.keys())}
 
@@ -75,17 +65,23 @@ def get_person_info(person_name: str) -> Optional[Dict]:
 def person_exists(person_name: str) -> bool:
   return person_name in person_registry
 
-@app.post("person")
+@app.post("/person", response_model=None)
 def create_person_folder(
   person_name: str,
-  images: List[Image.Image] = None,
+  images: List[bytes] = File(None),
   image_quality: int = 95,
-  target_size: tuple = None,
+  target_size: Optional[Tuple[int, int]] = None,
   overwrite: bool = False,
 ) -> Dict["str", bool]:
   # return false if folder already exists
   global person_registry
   try:
+    pil_images: List[Image.Image] = []
+    if images:
+      for image_bytes in images:
+        pil_image = Image.open(io.BytesIO(image_bytes))
+        pil_images.append(pil_image)
+        
     person_path = Path(config["data_root"]) / person_name
 
     if person_path.exists():
@@ -109,9 +105,9 @@ def create_person_folder(
       "target_size": target_size,
     }
 
-    if images:
+    if pil_images:
       success_count = add_images_to_person(
-        person_name, images, image_quality, target_size
+        person_name, pil_images, image_quality, target_size
       )
       print(f"Added {success_count} images to '{person_name}'")
 
@@ -178,7 +174,7 @@ def get_person_images(person_name: str) -> List[Path]:
 
   return sorted(image_paths)
 
-@app.get("/image-count")
+@app.get("/image-count", response_model=None)
 def get_image_count(person_name: str) -> Dict[str, int]:
   return {"image_count": person_registry.get(person_name, {}).get("image_count", 0)}
 
@@ -311,8 +307,15 @@ def get_stats() -> Dict:
   for person, info in person_registry.items():
     stats["persons"][person] = info["image_count"]
     stats["total_images"] += info["image_count"]
-
   return stats
+  
+### Initialization
+person_registry: dict = {}
 
-if __name__ == "__main__":
-  init()
+with open("config.json", 'r') as config_file:
+  config = json.load(config_file)
+  
+Path(config["data_root"]).mkdir(parents=True, exist_ok=True)
+discover_existing_persons()
+load_metadata()
+###
