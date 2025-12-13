@@ -34,13 +34,6 @@ def post_person(name: str, images: List[str]):
     files.append(("files", open(image, "rb")))
   requests.post(f"{config['storage_service_url']}/person", params=params, files=files)
 
-def persons_managing_interface():
-  for person_name in get_person_names():
-    with gr.Row():
-      gr.Textbox(person_name, label="Name")
-      gr.Number(get_image_count(person_name), label="Picture count")
-  logger.info("AFSDFSDF")
-
 def create_app():
   demo = gr.Blocks()
   demo.max_file_size = 20 * 1024 * 1024
@@ -56,7 +49,13 @@ def create_app():
         inputs=[person_name, images]
       )
     with gr.Tab("Manage added persons"):
-      persons_managing_interface()
+      @gr.render()
+      def persons_managing_interface():
+        for person_name in get_person_names():
+          with gr.Row():
+            gr.Textbox(person_name, label="Name")
+            gr.Number(get_image_count(person_name), label="Picture count")
+        logger.info("AFSDFSDF")
 
   return demo
 
