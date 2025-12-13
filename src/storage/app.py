@@ -8,13 +8,13 @@ import io
 
 from PIL import Image
 
-from fastapi import FastAPI, File
+from fastapi import FastAPI, File, UploadFile
 
 app = FastAPI(title="Storage service")
 
 def discover_existing_persons() -> Dict[str, Path]:
   global person_registry
-  
+
   for item in Path(config["data_root"]).iterdir():
     if item.is_dir():
       person_name = item.name
@@ -68,7 +68,7 @@ def person_exists(person_name: str) -> bool:
 @app.post("/person", response_model=None)
 def create_person_folder(
   person_name: str,
-  images: List[bytes] = File(None),
+  files: List[UploadFile] = File(),
   image_quality: int = 95,
   target_size: Optional[Tuple[int, int]] = None,
   overwrite: bool = False,
@@ -77,11 +77,11 @@ def create_person_folder(
   global person_registry
   try:
     pil_images: List[Image.Image] = []
-    if images:
-      for image_bytes in images:
-        pil_image = Image.open(io.BytesIO(image_bytes))
+    if files:
+      for image_bytes in files:
+        pil_image = Image.open(image_bytes.file)
         pil_images.append(pil_image)
-        
+
     person_path = Path(config["data_root"]) / person_name
 
     if person_path.exists():
@@ -126,7 +126,7 @@ def add_images_to_person(
   target_size: tuple = None,
 ) -> int:
   global person_registry
-  
+
   if person_name not in person_registry:
     print(f"Person '{person_name}' does not exist. Create folder first.")
     return 0
@@ -180,7 +180,7 @@ def get_image_count(person_name: str) -> Dict[str, int]:
 
 def delete_person(person_name: str) -> bool:
   global person_registry
-  
+
   if person_name not in person_registry:
     print(f"Person '{person_name}' does not exist.")
     return False
@@ -203,7 +203,7 @@ def delete_person(person_name: str) -> bool:
 
 def rename_person(old_name: str, new_name: str) -> bool:
   global person_registry
-  
+
   if old_name not in person_registry:
     print(f"Person '{old_name}' does not exist.")
     return False
@@ -308,13 +308,13 @@ def get_stats() -> Dict:
     stats["persons"][person] = info["image_count"]
     stats["total_images"] += info["image_count"]
   return stats
-  
+
 ### Initialization
 person_registry: dict = {}
 
 with open("config.json", 'r') as config_file:
   config = json.load(config_file)
-  
+
 Path(config["data_root"]).mkdir(parents=True, exist_ok=True)
 discover_existing_persons()
 load_metadata()
