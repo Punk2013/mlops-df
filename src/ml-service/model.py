@@ -1,7 +1,39 @@
+# single_person_model.py
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from pathlib import Path
 
+class Encoder(nn.Module):
+    def __init__(self, in_channels=3, latent_dim=512):
+        super().__init__()
+        self.initial = nn.Sequential(
+            nn.Conv2d(in_channels, 64, 7, padding=3),
+            nn.BatchNorm2d(64),
+            nn.PReLU()
+        )
+
+        self.down_blocks = nn.Sequential(
+            nn.Conv2d(64, 128, 3, stride=2, padding=1),
+            nn.BatchNorm2d(128),
+            nn.PReLU(),
+            nn.Conv2d(128, 256, 3, stride=2, padding=1),
+            nn.BatchNorm2d(256),
+            nn.PReLU(),
+            nn.Conv2d(256, 512, 3, stride=2, padding=1),
+            nn.BatchNorm2d(512),
+            nn.PReLU()
+        )
+
+        self.res_blocks = nn.Sequential(
+            *[ResidualBlock(512) for _ in range(6)]
+        )
+
+    def forward(self, x):
+        x = self.initial(x)
+        x = self.down_blocks(x)
+        x = self.res_blocks(x)
+        return x
 
 class ResidualBlock(nn.Module):
     def __init__(self, channels):
@@ -11,64 +43,43 @@ class ResidualBlock(nn.Module):
             nn.BatchNorm2d(channels),
             nn.PReLU(),
             nn.Conv2d(channels, channels, 3, padding=1),
-            nn.BatchNorm2d(channels),
+            nn.BatchNorm2d(channels)
         )
 
     def forward(self, x):
         return x + self.block(x)
 
-
-class Encoder(nn.Module):
-    def __init__(self, in_channels=3, latent_dim=512):
-        super().__init__()
-        self.initial = nn.Sequential(
-            nn.Conv2d(in_channels, 64, 7, padding=3), nn.BatchNorm2d(64), nn.PReLU()
-        )
-
-        self.down_blocks = nn.Sequential(
-            *[self._make_down_block(64 * 2**i, 2 if i < 2 else 4) for i in range(3)]
-        )
-
-        self.res_blocks = nn.Sequential(*[ResidualBlock(512) for _ in range(6)])
-
-    def _make_down_block(self, channels, stride):
-        return nn.Sequential(
-            nn.Conv2d(channels, channels * 2, 3, stride, padding=1),
-            nn.BatchNorm2d(channels * 2),
-            nn.PReLU(),
-        )
-
-    def forward(self, x):
-        x = self.initial(x)
-        x = self.down_blocks(x)
-        x = self.res_blocks(x)
-        return x
-
-
 class Decoder(nn.Module):
     def __init__(self, out_channels=3, latent_dim=512):
         super().__init__()
-        self.res_blocks = nn.Sequential(*[ResidualBlock(512) for _ in range(6)])
-
-        self.up_blocks = nn.Sequential(
-            *[self._make_up_block(512 // (2**i)) for i in range(3)]
+        self.res_blocks = nn.Sequential(
+            *[ResidualBlock(512) for _ in range(6)]
         )
 
-        self.final = nn.Conv2d(64, out_channels, 7, padding=3)
-
-    def _make_up_block(self, channels):
-        return nn.Sequential(
-            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False),
-            nn.Conv2d(channels, channels // 2, 3, padding=1),
-            nn.BatchNorm2d(channels // 2),
+        self.up_blocks = nn.Sequential(
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+            nn.Conv2d(512, 256, 3, padding=1),
+            nn.BatchNorm2d(256),
             nn.PReLU(),
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+            nn.Conv2d(256, 128, 3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.PReLU(),
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+            nn.Conv2d(128, 64, 3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.PReLU()
+        )
+
+        self.final = nn.Sequential(
+            nn.Conv2d(64, out_channels, 7, padding=3),
+            nn.Tanh()
         )
 
     def forward(self, x):
         x = self.res_blocks(x)
         x = self.up_blocks(x)
-        return torch.tanh(self.final(x))
-
+        return self.final(x)
 
 class Discriminator(nn.Module):
     def __init__(self, in_channels=3):
@@ -76,58 +87,88 @@ class Discriminator(nn.Module):
         self.net = nn.Sequential(
             nn.Conv2d(in_channels, 64, 4, stride=2, padding=1),
             nn.LeakyReLU(0.2),
-            *self._make_disc_block(64, 128),
-            *self._make_disc_block(128, 256),
-            *self._make_disc_block(256, 512),
-            nn.Conv2d(512, 1, 4, padding=1),
-        )
-
-    def _make_disc_block(self, in_ch, out_ch):
-        return [
-            nn.Conv2d(in_ch, out_ch, 4, stride=2, padding=1),
-            nn.InstanceNorm2d(out_ch),
+            nn.Conv2d(64, 128, 4, stride=2, padding=1),
+            nn.InstanceNorm2d(128),
             nn.LeakyReLU(0.2),
-        ]
+            nn.Conv2d(128, 256, 4, stride=2, padding=1),
+            nn.InstanceNorm2d(256),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(256, 512, 4, stride=2, padding=1),
+            nn.InstanceNorm2d(512),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(512, 1, 3, stride=1, padding=1)
+        )
 
     def forward(self, x):
         return self.net(x)
 
+class SinglePersonDeepFake:
+    def __init__(self, encoder_path=None, device=None):
+        self.device = device or torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        print(f"Using device: {self.device}")
 
-class DeepFakeModel(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.encoder = Encoder()
-        self.decoder_A = Decoder()
-        self.decoder_B = Decoder()
-        self.discriminator_A = Discriminator()
-        self.discriminator_B = Discriminator()
+        # Initialize components
+        self.encoder = Encoder().to(self.device)
+        self.decoder = Decoder().to(self.device)
+        self.discriminator = Discriminator().to(self.device)
 
-    def encode(self, x):
-        return self.encoder(x)
+        # Load encoder if provided
+        if encoder_path and encoder_path.exists():
+            self.load_encoder(encoder_path)
+            print(f"Loaded encoder from {encoder_path}")
+        else:
+            print("Initialized with new encoder")
 
-    def decode_A(self, z):
-        return self.decoder_A(z)
+    def load_encoder(self, encoder_path):
+        """Load encoder weights from file"""
+        checkpoint = torch.load(encoder_path, map_location=self.device)
+        if isinstance(checkpoint, dict):
+            self.encoder.load_state_dict(checkpoint['encoder_state_dict'])
+        else:
+            self.encoder.load_state_dict(checkpoint)
 
-    def decode_B(self, z):
-        return self.decoder_B(z)
+    def save_models(self, output_dir, person_name):
+        """Save all models"""
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-    def discriminate_A(self, x):
-        return self.discriminator_A(x)
+        # Save encoder
+        torch.save(
+            {'encoder_state_dict': self.encoder.state_dict()},
+            output_dir / f"encoder_{person_name}.pth"
+        )
 
-    def discriminate_B(self, x):
-        return self.discriminator_B(x)
+        # Save decoder
+        torch.save(
+            {'decoder_state_dict': self.decoder.state_dict()},
+            output_dir / f"decoder_{person_name}.pth"
+        )
 
+        # Save discriminator
+        torch.save(
+            {'discriminator_state_dict': self.discriminator.state_dict()},
+            output_dir / f"discriminator_{person_name}.pth"
+        )
 
-if __name__ == "__main__":
-    model = DeepFakeModel()
+        print(f"Models saved to {output_dir}/")
 
-    x = torch.randn(1, 3, 128, 128)
-    encoded = model.encode(x)
+    def load_all_models(self, model_dir, person_name):
+        """Load all models for a person"""
+        model_dir = Path(model_dir)
 
-    reconstructed_A = model.decode_A(encoded)
-    swapped_to_B = model.decode_B(encoded)
+        # Load encoder
+        encoder_path = model_dir / f"encoder_{person_name}.pth"
+        if encoder_path.exists():
+            self.load_encoder(encoder_path)
 
-    print("Original shape:", x.shape)
-    print("Encoded shape:", encoded.shape)
-    print("Reconstructed A shape:", reconstructed_A.shape)
-    print("Swapped to B shape:", swapped_to_B.shape)
+        # Load decoder
+        decoder_path = model_dir / f"decoder_{person_name}.pth"
+        if decoder_path.exists():
+            checkpoint = torch.load(decoder_path, map_location=self.device)
+            self.decoder.load_state_dict(checkpoint['decoder_state_dict'])
+
+        # Load discriminator
+        disc_path = model_dir / f"discriminator_{person_name}.pth"
+        if disc_path.exists():
+            checkpoint = torch.load(disc_path, map_location=self.device)
+            self.discriminator.load_state_dict(checkpoint['discriminator_state_dict'])

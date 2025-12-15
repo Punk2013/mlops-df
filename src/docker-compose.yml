@@ -19,6 +19,14 @@ services:
     networks:
       - microservices-network
 
+  collector-service:
+    build: ./collector
+    ports:
+      - "8002:8002"
+    # volumes:
+    networks:
+      - microservices-network
+
 networks:
   microservices-network:
     driver: bridge
