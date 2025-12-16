@@ -1,17 +1,17 @@
 # training_pipeline.py
-import yaml
+import json
 from pathlib import Path
 import torch
 from .model import SinglePersonDeepFake
-from ..collector.app import SinglePersonDataLoader
 from .train import SinglePersonTrainer
+import requests
 
 class IncrementalTrainingPipeline:
-    def __init__(self, config_path="src/ml-service/config.yaml"):
+    def __init__(self, config_path="config.json"):
         """Initialize training pipeline with configuration"""
         # Load configuration
         with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f)
+            self.config = json.load(f)
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.base_config = self.config['training']
@@ -39,15 +39,15 @@ class IncrementalTrainingPipeline:
 
         # Create dataloader
         print("Creating dataloader...")
-        dataloader = SinglePersonDataLoader.create_dataloader(
-            person_dir=person_dir,
-            batch_size=self.base_config['batch_size'],
-            img_size=self.base_config['img_size'],
-            num_workers=self.base_config['num_workers'],
-            augment=True
-        )
+        params = {
+          "name": person_name,
+          "batch_size": self.base_config["batch_size"],
+          "img_size": self.base_config["img_size"],
+          "num_workers": self.base_config["num_workers"]
+        }
+        response = requests.post(f"{self.config["collector_service_url"]}/dataloader", params=params)
+        assert response.json()["OK"]
 
-        print(f"Dataset size: {len(dataloader.dataset)} images")
         print(f"Batch size: {self.base_config['batch_size']}")
 
         # Create trainer
@@ -65,7 +65,7 @@ class IncrementalTrainingPipeline:
         if num_epochs is None:
             num_epochs = self.base_config['num_epochs']
 
-        history = trainer.train(dataloader, person_name, num_epochs)
+        history = trainer.train(person_name, num_epochs)
 
         print(f"\nTraining completed for {person_name}!")
 

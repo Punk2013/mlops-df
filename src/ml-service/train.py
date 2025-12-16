@@ -1,5 +1,6 @@
 # single_person_trainer.py
 import torch
+import requests
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -87,7 +88,7 @@ class SinglePersonTrainer:
         self.recon_criterion = nn.L1Loss()  # Reconstruction loss
         self.adv_criterion = nn.MSELoss()   # Adversarial loss
 
-    def train_epoch(self, dataloader, epoch):
+    def train_epoch(self, epoch):
         """Train for one epoch on single person data"""
         self.model.encoder.train()
         self.model.decoder.train()
@@ -98,11 +99,24 @@ class SinglePersonTrainer:
         disc_losses = []
         gen_losses = []
 
-        progress_bar = tqdm(dataloader, desc=f'Epoch {epoch}')
 
-        for batch_idx, batch in enumerate(progress_bar):
+        # for batch_idx, batch in enumerate(progress_bar):
+        while True:
+            response = requests.get(f"{self.config["collector_service_url"]}/next_batch")
+            if response.json()["ended"]:
+              break
+            shape = response.json().get("shape", [])
+            data = response.json().get("images", [])
+            if not data:
+              raise ValueError("No data in tensor")
+            np_arr = np.array(data, dtype=np.float32)
+            batch = torch.from_numpy(np_arr).to(torch.float32)
+            if shape:
+              batch = batch.reshape(shape)
+            batch_idx =response.json().get("batch_idx")
+            
             # Get batch data
-            real_images = batch['image'].to(self.device)
+            real_images = batch.to(self.device)
             batch_size = real_images.size(0)
 
             # Create labels for adversarial loss
@@ -157,7 +171,7 @@ class SinglePersonTrainer:
                 gen_losses.append(gen_adv_loss.item())
 
                 # Update progress bar
-                progress_bar.set_postfix({
+                print({
                     'Total': f'{total_loss:.4f}',
                     'Recon': f'{recon_loss.item():.4f}',
                     'Disc': f'{disc_loss.item():.4f}',
@@ -178,19 +192,18 @@ class SinglePersonTrainer:
             'gen_loss': np.mean(gen_losses) if gen_losses else 0
         }
 
-    def train(self, dataloader, person_name, num_epochs=None):
+    def train(self, person_name, num_epochs=None):
         """Main training loop for single person"""
         if num_epochs is None:
             num_epochs = self.config['num_epochs']
 
-        print(f"\nTraining on person: {person_name}")
         print(f"Number of epochs: {num_epochs}")
 
         for epoch in range(num_epochs):
             start_time = time.time()
 
             # Train for one epoch
-            losses = self.train_epoch(dataloader, epoch)
+            losses = self.train_epoch(epoch)
 
             # Update history
             for key, value in losses.items():

@@ -1,28 +1,44 @@
 # single_person_dataset.py
 import os
+import json
 from PIL import Image
+from starlette.responses import StreamingResponse
 from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as transforms
 import glob
+import requests
+from tqdm import tqdm
 
 from fastapi import FastAPI, File, UploadFile
+import zipfile
+import io
 
 app = FastAPI(title="Collector service")
 
+config = {
+  "storage_service_url": "http://storage-service:8001"
+}
+
 dataloader = None
 data_iter = None
+progress_bar = None
 
 @app.post("/dataloader", response_model=None)
 def post_dataloader(
-  person_dir: str,
+  name: str,
   batch_size: int,
   img_size: int,
   num_workers: int,
   augment=True
 ):
   global dataloader
-  global data_iter
   try:
+    
+    person_dir = f"data/{name}"
+    response = requests.get(f"{config["storage_service_url"]}/person/folder/{name}")
+    with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
+      zf.extractall(person_dir)
+    
     dataloader = create_dataloader(
         person_dir,
         batch_size,
@@ -30,20 +46,27 @@ def post_dataloader(
         num_workers,
         augment
     )
-    data_iter = iter(dataloader)
+    progress_bar = tqdm(dataloader)
+    data_iter = enumerate(progress_bar)
     return {"OK": True}
   except Exception as e:
     return {"OK": (False, e)}
 
-@app.get(f"/batch/{batch_idx}")
-def get_batch(batch_idx: int):
-  global data_iter
+@app.get("/next-batch")
+def get_batch(epoch: int):
   try:
-    assert data_iter != None
-    batch = next(data_iter)
-    return batch
-  except StopIteration
-    return {"error": "Out of batches"}
+    batch_idx, batch = next(data_iter)
+    batch_dict = {
+      "batch_idx": batch_idx,
+      "images": batch["image"].tolist(),
+      "shape": batch["image"].shape,
+      "paths": batch["path"].tolist(),
+      "ended": False
+    }
+    return batch_dict
+  except StopIteration:
+    return {"ended": True}
+  
 
 class SinglePersonDataset(Dataset):
     def __init__(self, person_dir, transform=None, img_size=128, augment=True):

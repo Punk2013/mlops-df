@@ -8,9 +8,35 @@ import io
 
 from PIL import Image
 
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.responses import FileResponse
+import tempfile
+import zipfile
 
 app = FastAPI(title="Storage service")
+
+@app.get("/person-folder/{name}")
+def get_person_folder(name: str):
+  folder_path = config["data_root"] / Path(name)
+  if not os.path.exists(folder_path):
+    raise HTTPException(status_code=404, detail="Folder not found")
+  
+  temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+  
+  with zipfile.ZipFile(temp_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+    for root, dirs, files in os.walk(folder_path):
+      for file in files:
+        file_path = os.path.join(root, file)
+        arcname = os.path.relpath(file_path, folder_path)
+        zipf.write(file_path, arcname)
+  
+  temp_zip.close()
+  
+  return FileResponse(
+    temp_zip.name,
+    media_type='application/zip',
+    filename='folder.zip'
+  )
 
 def discover_existing_persons() -> Dict[str, Path]:
   global person_registry

@@ -1,0 +1,23 @@
+{
+  "training": {
+    "batch_size": 8,
+    "img_size": 128,
+    "num_workers": 4,
+    "num_epochs": 100,
+    "gen_lr": 2e-4,
+    "disc_lr": 2e-4,
+    "lr_decay_epoch": 30,
+    "gen_update_freq": 1,
+    "lambda_recon": 10.0,
+    "lambda_adv": 1.0,
+    "encoder_path": null,
+    "freeze_encoder": false,
+    "use_gradient_penalty": true,
+    "output_dir": "./trained_models",
+    "checkpoint_dir": "./checkpoints",
+    "sample_dir": "./samples",
+    "checkpoint_interval": 10,
+    "sample_interval": 5
+  },
+  "collector_service_url": "http://storage-service:8001"
+}

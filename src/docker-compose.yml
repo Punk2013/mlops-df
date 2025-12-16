@@ -23,7 +23,13 @@ services:
     build: ./collector
     ports:
       - "8002:8002"
-    # volumes:
+    networks:
+      - microservices-network
+      
+  ml-service:
+    build: ./ml-service
+    ports:
+      - "8003:8003"
     networks:
       - microservices-network
 
