@@ -2,7 +2,7 @@
 import os
 import json
 from PIL import Image
-from starlette.responses import StreamingResponse
+from starlette.responses import Response
 from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as transforms
 import glob
@@ -35,7 +35,7 @@ def post_dataloader(
   try:
     
     person_dir = f"data/{name}"
-    response = requests.get(f"{config["storage_service_url"]}/person/folder/{name}")
+    response = requests.get(f"{config['storage_service_url']}/person-folder/{name}")
     with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
       zf.extractall(person_dir)
     
@@ -53,7 +53,7 @@ def post_dataloader(
     return {"OK": (False, e)}
 
 @app.get("/next-batch")
-def get_batch(epoch: int):
+def get_batch():
   try:
     batch_idx, batch = next(data_iter)
     batch_dict = {

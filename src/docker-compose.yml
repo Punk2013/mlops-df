@@ -30,6 +30,8 @@ services:
     build: ./ml-service
     ports:
       - "8003:8003"
+    volumes:
+      - ../trained_models:/app/trained_models
     networks:
       - microservices-network
 

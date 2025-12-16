@@ -13,6 +13,9 @@ logging.basicConfig(level=logging.INFO)
 with open("config.json", "r") as config_file:
   config = json.load(config_file)
 
+def get_trained_persons():
+  response = requests.get(f"{config['ml_service_url']}/trained-list")
+  return response.json().get("names")
 
 def get_person_names() -> List[str]:
   response = requests.get(f"{config['storage_service_url']}/persons")
@@ -34,6 +37,11 @@ def post_person(name: str, images: List[str]):
     files.append(("files", open(image, "rb")))
   requests.post(f"{config['storage_service_url']}/person", params=params, files=files)
 
+def post_train_person(name):
+  print("Requested to train: ", name)
+  response = requests.post(f"{config['ml_service_url']}/train/{name}")
+  return response
+
 def create_app():
   demo = gr.Blocks()
   demo.max_file_size = 20 * 1024 * 1024
@@ -51,11 +59,15 @@ def create_app():
     with gr.Tab("Manage added persons"):
       @gr.render()
       def persons_managing_interface():
+        trained = get_trained_persons()
+        print(trained)
         for person_name in get_person_names():
           with gr.Row():
             gr.Textbox(person_name, label="Name")
             gr.Number(get_image_count(person_name), label="Picture count")
-        logger.info("AFSDFSDF")
+            gr.Checkbox(person_name in trained, interactive=False, label="Trained")
+            train_b = gr.Button("Train model")
+            train_b.click(fn=lambda: post_train_person(person_name))
 
   return demo
 

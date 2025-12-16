@@ -1,4 +1,4 @@
-from .pipeline import IncrementalTrainingPipeline
+from pipeline import IncrementalTrainingPipeline
 from pathlib import Path
 import io
 from PIL import Image
@@ -8,17 +8,17 @@ from fastapi import FastAPI, UploadFile, File, Response
 
 app = FastAPI(title="ML service")
 
+pipeline = IncrementalTrainingPipeline()
+
 @app.post("/train/{name}")
 def train_person(name: str):
-  pipeline = IncrementalTrainingPipeline()
-  pipeline.train_person("Tom Hanks", "data/Tom Hanks")
+  pipeline.train_person(name)
   return {"Result": f"trained a model for {name}"}
 
 @app.get("/inference/{name}")
-def swap_image_face(name: str, image: UploadFile=File())
+def swap_image_face(name: str, image: UploadFile=File()):
   source_img = Image.open(image.file)
   
-  pipeline = IncrementalTrainingPipeline()
   model = pipeline.load_person_models(name,
     encoder_path=pipeline._get_latest_encoder_path())
   model.encoder.eval()
@@ -49,6 +49,11 @@ def swap_image_face(name: str, image: UploadFile=File())
      
   return Response(content=img_byte_arr.getvalue(), 
                   media_type="image/png") 
+  
+@app.get("/trained-list")
+def get_trained_list():
+  names = pipeline.list_trained_persons()
+  return {"names": names}
 
 if __name__ == "__main__":
   # pipeline = IncrementalTrainingPipeline()

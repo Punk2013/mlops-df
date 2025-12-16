@@ -7,9 +7,8 @@ from torch.utils.data import DataLoader
 from pathlib import Path
 import time
 import numpy as np
-from tqdm import tqdm
 import os
-from .model import SinglePersonDeepFake
+from model import SinglePersonDeepFake
 
 class SinglePersonTrainer:
     def __init__(self, config):
@@ -19,7 +18,7 @@ class SinglePersonTrainer:
 
         # Initialize model
         self.model = SinglePersonDeepFake(
-            encoder_path=Path(config.get('encoder_path')),
+            encoder_path=config.get('encoder_path'),
             device=self.device
         )
 
@@ -102,8 +101,9 @@ class SinglePersonTrainer:
 
         # for batch_idx, batch in enumerate(progress_bar):
         while True:
-            response = requests.get(f"{self.config["collector_service_url"]}/next_batch")
-            if response.json()["ended"]:
+            response = requests.get(f"{self.config['collector_service_url']}/next-batch")
+            print("Response is ", response.json())
+            if response.json().get("ended"):
               break
             shape = response.json().get("shape", [])
             data = response.json().get("images", [])

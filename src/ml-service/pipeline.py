@@ -1,9 +1,11 @@
 # training_pipeline.py
 import json
 from pathlib import Path
+import os
+import re
 import torch
-from .model import SinglePersonDeepFake
-from .train import SinglePersonTrainer
+from model import SinglePersonDeepFake
+from train import SinglePersonTrainer
 import requests
 
 class IncrementalTrainingPipeline:
@@ -23,7 +25,7 @@ class IncrementalTrainingPipeline:
         print("Incremental Training Pipeline initialized")
         print(f"Base encoder: {self.base_config.get('encoder_path', 'New encoder')}")
 
-    def train_person(self, person_name, person_dir, num_epochs=None):
+    def train_person(self, person_name, num_epochs=None):
         """
         Train on a single person
 
@@ -34,7 +36,6 @@ class IncrementalTrainingPipeline:
         """
         print(f"\n{'='*60}")
         print(f"Training Person: {person_name}")
-        print(f"Image directory: {person_dir}")
         print(f"{'='*60}")
 
         # Create dataloader
@@ -45,7 +46,7 @@ class IncrementalTrainingPipeline:
           "img_size": self.base_config["img_size"],
           "num_workers": self.base_config["num_workers"]
         }
-        response = requests.post(f"{self.config["collector_service_url"]}/dataloader", params=params)
+        response = requests.post(f"{self.base_config['collector_service_url']}/dataloader", params=params)
         assert response.json()["OK"]
 
         print(f"Batch size: {self.base_config['batch_size']}")
@@ -130,3 +131,13 @@ class IncrementalTrainingPipeline:
             model.discriminator.load_state_dict(checkpoint['discriminator_state_dict'])
 
         return model
+    
+    def list_trained_persons(self):
+      models_dir = self.base_config['output_dir']
+      names = []
+      for filename in os.listdir(models_dir):
+        match = re.match(r'decoder_(.*)\.pth$', filename)
+        if match:
+          names.append(match.group(1))
+      
+      return names

@@ -1,3 +1,4 @@
 {
-  "storage_service_url" : "http://storage-service:8001"
+  "storage_service_url" : "http://storage-service:8001",
+  "ml_service_url" : "http://ml-service:8003"
 }
