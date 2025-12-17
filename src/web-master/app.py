@@ -38,9 +38,7 @@ def post_person(name: str, images: List[str]):
   requests.post(f"{config['storage_service_url']}/person", params=params, files=files)
 
 def post_train_person(name):
-  print("Requested to train: ", name)
-  response = requests.post(f"{config['ml_service_url']}/train/{name}")
-  return response
+  requests.post(f"{config['ml_service_url']}/train/{name}")
 
 def create_app():
   demo = gr.Blocks()
@@ -63,11 +61,10 @@ def create_app():
         print(trained)
         for person_name in get_person_names():
           with gr.Row():
-            gr.Textbox(person_name, label="Name")
+            name_textbox = gr.Textbox(person_name, label="Name")
             gr.Number(get_image_count(person_name), label="Picture count")
             gr.Checkbox(person_name in trained, interactive=False, label="Trained")
-            train_b = gr.Button("Train model")
-            train_b.click(fn=lambda: post_train_person(person_name))
+            gr.Button("Train model").click(fn=post_train_person, inputs=name_textbox)
 
   return demo
 

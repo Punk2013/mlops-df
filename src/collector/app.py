@@ -32,6 +32,8 @@ def post_dataloader(
   augment=True
 ):
   global dataloader
+  global progress_bar
+  global data_iter
   try:
     
     person_dir = f"data/{name}"
@@ -54,17 +56,19 @@ def post_dataloader(
 
 @app.get("/next-batch")
 def get_batch():
+  global data_iter
   try:
     batch_idx, batch = next(data_iter)
     batch_dict = {
       "batch_idx": batch_idx,
       "images": batch["image"].tolist(),
       "shape": batch["image"].shape,
-      "paths": batch["path"].tolist(),
+      "paths": batch["path"].tolist() if hasattr(batch["path"], 'tolist') else batch["path"],
       "ended": False
     }
     return batch_dict
   except StopIteration:
+    data_iter = enumerate(progress_bar)
     return {"ended": True}
   
 

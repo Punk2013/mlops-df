@@ -102,7 +102,6 @@ class SinglePersonTrainer:
         # for batch_idx, batch in enumerate(progress_bar):
         while True:
             response = requests.get(f"{self.config['collector_service_url']}/next-batch")
-            print("Response is ", response.json())
             if response.json().get("ended"):
               break
             shape = response.json().get("shape", [])
@@ -215,7 +214,7 @@ class SinglePersonTrainer:
                   f"Total: {losses['total_loss']:.4f} "
                   f"Recon: {losses['recon_loss']:.4f} "
                   f"Disc: {losses['disc_loss']:.4f} "
-                  f"Time: {epoch_time:.2f}s")
+                  f"Time: {epoch_time:.2f}s", flush=True)
 
             # Save checkpoint periodically
             if epoch % self.config['checkpoint_interval'] == 0:

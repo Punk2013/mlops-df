@@ -113,7 +113,7 @@ class SinglePersonDeepFake:
         self.discriminator = Discriminator().to(self.device)
 
         # Load encoder if provided
-        if encoder_path and encoder_path.exists():
+        if encoder_path and Path(encoder_path).exists():
             self.load_encoder(encoder_path)
             print(f"Loaded encoder from {encoder_path}")
         else:
