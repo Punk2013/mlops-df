@@ -47,6 +47,11 @@ def get_swap_face(image, name):
   img_byte_arr = io.BytesIO(response.content)
   pil_image = Image.open(img_byte_arr)
   return pil_image
+  
+def delete_person(name):
+  if name in get_trained_persons():
+    requests.delete(f"{config['ml_service_url']}/model/{name}")
+  requests.delete(f"{config['storage_service_url']}/person/{name}")
 
 def create_app():
   demo = gr.Blocks()
@@ -73,6 +78,7 @@ def create_app():
             gr.Number(get_image_count(person_name), label="Picture count")
             gr.Checkbox(person_name in trained, interactive=False, label="Trained")
             gr.Button("Train model").click(fn=post_train_person, inputs=name_textbox)
+            gr.Button("Remove").click(fn=delete_person, inputs=name_textbox)
     with gr.Tab("Swap face"):
       @gr.render()
       def face_swaping_interface():

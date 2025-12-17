@@ -204,6 +204,7 @@ def get_person_images(person_name: str) -> List[Path]:
 def get_image_count(person_name: str) -> Dict[str, int]:
   return {"image_count": person_registry.get(person_name, {}).get("image_count", 0)}
 
+@app.delete("/person/{person_name}")
 def delete_person(person_name: str) -> bool:
   global person_registry
 

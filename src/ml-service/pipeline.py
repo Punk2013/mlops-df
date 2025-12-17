@@ -141,3 +141,8 @@ class IncrementalTrainingPipeline:
           names.append(match.group(1))
       
       return names
+      
+    def remove_person_model(self, person_name: str):
+      os.remove(Path(self.base_config['output_dir']) / Path(f"encoder_{person_name}.pth"))
+      os.remove(Path(self.base_config['output_dir']) / Path(f"decoder_{person_name}.pth"))
+      os.remove(Path(self.base_config['output_dir']) / Path(f"discriminator_{person_name}.pth"))
