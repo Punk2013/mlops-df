@@ -1,6 +1,7 @@
 import json
 from typing import List
 import time
+import io
 
 import gradio as gr
 import requests
@@ -39,6 +40,13 @@ def post_person(name: str, images: List[str]):
 
 def post_train_person(name):
   requests.post(f"{config['ml_service_url']}/train/{name}")
+  
+def get_swap_face(image, name):
+  file = {"image": open(image, "rb")}
+  response = requests.get(f"{config['ml_service_url']}/inference/{name}", files=file)
+  img_byte_arr = io.BytesIO(response.content)
+  pil_image = Image.open(img_byte_arr)
+  return pil_image
 
 def create_app():
   demo = gr.Blocks()
@@ -65,7 +73,14 @@ def create_app():
             gr.Number(get_image_count(person_name), label="Picture count")
             gr.Checkbox(person_name in trained, interactive=False, label="Trained")
             gr.Button("Train model").click(fn=post_train_person, inputs=name_textbox)
-
+    with gr.Tab("Swap face"):
+      @gr.render()
+      def face_swaping_interface():
+        image = gr.File(file_types=["image"], label="Image of the person whose face to swap")
+        person = gr.Radio(choices=get_trained_persons(), label="Choose the person whose face to use")
+        swap_button = gr.Button("Swap")
+        gen_img = gr.Image()
+        swap_button.click(fn=get_swap_face, inputs=[image, person], outputs=gen_img)
   return demo
 
 demo = create_app()

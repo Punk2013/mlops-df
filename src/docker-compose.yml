@@ -7,6 +7,10 @@ services:
       - "7860:7860"
     depends_on:
       - storage-service
+      - collector-service
+      - ml-service
+    healthcheck:
+      start_period: 5s
     networks:
       - microservices-network
 
