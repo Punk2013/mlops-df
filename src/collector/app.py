@@ -15,9 +15,8 @@ import io
 
 app = FastAPI(title="Collector service")
 
-config = {
-  "storage_service_url": "http://storage-service:8001"
-}
+with open("config.json", "r") as config_file:
+  config = json.load(config_file)
 
 dataloader = None
 data_iter = None
@@ -74,15 +73,6 @@ def get_batch():
 
 class SinglePersonDataset(Dataset):
     def __init__(self, person_dir, transform=None, img_size=128, augment=True):
-        """
-        Dataset for single person training
-
-        Args:
-            person_dir: Directory containing person's images
-            transform: Custom transforms
-            img_size: Target image size
-            augment: Whether to apply data augmentation
-        """
         self.person_dir = person_dir
         self.img_size = img_size
         self.augment = augment
@@ -96,8 +86,7 @@ class SinglePersonDataset(Dataset):
         self.transform = transform if transform else self._get_default_transforms()
 
     def _get_image_paths(self, directory):
-        """Get all image file paths from directory"""
-        extensions = ['jpg', 'jpeg', 'png', 'bmp', 'tiff']
+        extensions = config['extensions']
         image_paths = []
         for ext in extensions:
             image_paths.extend(glob.glob(os.path.join(directory, f'*.{ext}')))
@@ -105,7 +94,6 @@ class SinglePersonDataset(Dataset):
         return sorted(image_paths)
 
     def _get_default_transforms(self):
-        """Get default transforms with augmentation"""
         if self.augment:
             return transforms.Compose([
                 transforms.Resize((self.img_size + 20, self.img_size + 20)),
@@ -126,7 +114,6 @@ class SinglePersonDataset(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        """Returns tensor image and its path"""
         img_path = self.image_paths[idx]
         img = Image.open(img_path).convert('RGB')
 
@@ -137,16 +124,6 @@ class SinglePersonDataset(Dataset):
 
 def create_dataloader(person_dir, batch_size=8, img_size=128,
                       num_workers=4, augment=True):
-    """
-    Create dataloader for single person
-
-    Args:
-        person_dir: Directory containing person's images
-        batch_size: Batch size
-        img_size: Target image size
-        num_workers: Number of workers
-        augment: Whether to apply augmentation
-    """
     dataset = SinglePersonDataset(
         person_dir=person_dir,
         img_size=img_size,

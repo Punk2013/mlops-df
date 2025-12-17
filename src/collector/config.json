@@ -1,0 +1,4 @@
+{
+  "storage_service_url": "http://storage-service:8001",
+  "extensions": [ "jpg", "jpeg", "png"]
+}
